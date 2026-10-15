@@ -119,17 +119,27 @@ export function MarketplaceProvider({ children }: { children: ReactNode }) {
 
   const listForSale = useCallback((productId: string, price: string) => {
     if (!connectedAccount) throw new Error('Wallet not connected');
+    const product = products.find(p => p.id === productId);
+    if (!product) throw new Error('Product not found');
+    if (product.owner.toLowerCase() !== connectedAccount.toLowerCase()) {
+      throw new Error('Only the owner can list this product');
+    }
     setProducts(prev => prev.map(p => 
       p.id === productId ? { ...p, isForSale: true, price } : p
     ));
-  }, [connectedAccount]);
+  }, [connectedAccount, products]);
 
   const delistProduct = useCallback((productId: string) => {
     if (!connectedAccount) throw new Error('Wallet not connected');
+    const product = products.find(p => p.id === productId);
+    if (!product) throw new Error('Product not found');
+    if (product.owner.toLowerCase() !== connectedAccount.toLowerCase()) {
+      throw new Error('Only the owner can delist this product');
+    }
     setProducts(prev => prev.map(p => 
       p.id === productId ? { ...p, isForSale: false } : p
     ));
-  }, [connectedAccount]);
+  }, [connectedAccount, products]);
 
   const isProductOwner = useCallback((productId: string) => {
     if (!connectedAccount) return false;

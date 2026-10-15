@@ -16,6 +16,11 @@ interface ProductCardProps {
 export default function ProductCard({ product, onView, onPurchase, isOwned, isConnected }: ProductCardProps) {
   const [imageLoaded, setImageLoaded] = React.useState(false);
 
+  // Reset image loaded state when product changes
+  React.useEffect(() => {
+    setImageLoaded(false);
+  }, [product.image]);
+
   return (
     <Card
       sx={{

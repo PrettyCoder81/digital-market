@@ -23,7 +23,7 @@ function MarketplaceContent() {
   } = useMarketplace();
 
   const [currentView, setCurrentView] = useState('marketplace');
-  const [selectedProduct, setSelectedProduct] = useState<Product | null>(null);
+  const [selectedProductId, setSelectedProductId] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedCategory, setSelectedCategory] = useState('All');
   const [snackbar, setSnackbar] = useState<{ open: boolean; message: string; severity: 'success' | 'error' | 'info' }>({
@@ -56,11 +56,15 @@ function MarketplaceContent() {
   }, [products, searchQuery, selectedCategory, currentView, isProductOwner]);
 
   const handleViewProduct = (product: Product) => {
-    setSelectedProduct(product);
+    setSelectedProductId(product.id);
   };
 
   const handlePurchase = async (product: Product) => {
-    setSelectedProduct(product);
+    setSelectedProductId(product.id);
+  };
+
+  const handleCloseDetail = () => {
+    setSelectedProductId(null);
   };
 
   const handleAdminClick = () => {
@@ -247,9 +251,8 @@ function MarketplaceContent() {
 
       {/* Product Detail Dialog */}
       <ProductDetail
-        product={selectedProduct}
-        open={selectedProduct !== null}
-        onClose={() => setSelectedProduct(null)}
+        productId={selectedProductId}
+        onClose={handleCloseDetail}
       />
 
       {/* Snackbar */}

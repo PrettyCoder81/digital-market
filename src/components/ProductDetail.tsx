@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useMemo, useEffect, useCallback } from 'react';
 import {
   Dialog, DialogTitle, DialogContent, DialogActions, Typography, Button, Box,
   Chip, IconButton, Divider, TextField, Alert, CircularProgress,
@@ -12,16 +12,21 @@ import { Product } from '../types';
 import { useMarketplace } from '../context/MarketplaceContext';
 
 interface ProductDetailProps {
-  product: Product | null;
-  open: boolean;
+  productId: string | null;
   onClose: () => void;
 }
 
-export default function ProductDetail({ product, open, onClose }: ProductDetailProps) {
+export default function ProductDetail({ productId, onClose }: ProductDetailProps) {
   const {
-    purchaseProduct, transferOwnership,
+    products, purchaseProduct, transferOwnership,
     platformFee, isProductOwner, listForSale, delistProduct, isConnected
   } = useMarketplace();
+
+  // Derive fresh product from context every render (no stale references)
+  const product = useMemo<Product | null>(
+    () => products.find(p => p.id === productId) ?? null,
+    [products, productId]
+  );
 
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
@@ -32,13 +37,24 @@ export default function ProductDetail({ product, open, onClose }: ProductDetailP
   const [sellPrice, setSellPrice] = useState('');
   const [copied, setCopied] = useState(false);
 
-  if (!product) return null;
+  // Reset all internal states when product changes or dialog closes
+  useEffect(() => {
+    setError('');
+    setSuccess('');
+    setTransferAddress('');
+    setShowTransfer(false);
+    setShowSellDialog(false);
+    setSellPrice('');
+    setLoading(false);
+    setCopied(false);
+  }, [productId]);
 
-  const owned = isProductOwner(product.id);
-  const feeAmount = (parseFloat(product.price) * platformFee) / 100;
-  const ownerReceives = parseFloat(product.price) - feeAmount;
+  const owned = product ? isProductOwner(product.id) : false;
+  const feeAmount = product ? (parseFloat(product.price) * platformFee) / 100 : 0;
+  const ownerReceives = product ? parseFloat(product.price) - feeAmount : 0;
 
-  const handlePurchase = async () => {
+  const handlePurchase = useCallback(async () => {
+    if (!product) return;
     setLoading(true);
     setError('');
     setSuccess('');
@@ -49,9 +65,10 @@ export default function ProductDetail({ product, open, onClose }: ProductDetailP
       setError(err.message || 'Purchase failed');
     }
     setLoading(false);
-  };
+  }, [product, purchaseProduct]);
 
-  const handleTransfer = async () => {
+  const handleTransfer = useCallback(async () => {
+    if (!product) return;
     if (!transferAddress.startsWith('0x') || transferAddress.length !== 42) {
       setError('Invalid Ethereum address');
       return;
@@ -67,39 +84,75 @@ export default function ProductDetail({ product, open, onClose }: ProductDetailP
       setError(err.message || 'Transfer failed');
     }
     setLoading(false);
-  };
+  }, [product, transferOwnership, transferAddress]);
 
-  const handleListForSale = () => {
+  const handleListForSale = useCallback(() => {
+    if (!product) return;
     if (!sellPrice || parseFloat(sellPrice) <= 0) {
       setError('Please enter a valid price');
       return;
     }
-    listForSale(product.id, sellPrice);
-    setSuccess('Product listed for sale!');
-    setShowSellDialog(false);
-    setSellPrice('');
-  };
+    setError('');
+    try {
+      listForSale(product.id, sellPrice);
+      setSuccess('Product listed for sale!');
+      setShowSellDialog(false);
+      setSellPrice('');
+    } catch (err: any) {
+      setError(err.message || 'Failed to list product');
+    }
+  }, [product, listForSale, sellPrice]);
 
-  const handleDelist = () => {
-    delistProduct(product.id);
-    setSuccess('Product removed from sale.');
-  };
+  const handleDelist = useCallback(() => {
+    if (!product) return;
+    setError('');
+    try {
+      delistProduct(product.id);
+      setSuccess('Product removed from sale.');
+    } catch (err: any) {
+      setError(err.message || 'Failed to delist product');
+    }
+  }, [product, delistProduct]);
 
-  const copyAddress = () => {
+  const copyAddress = useCallback(() => {
+    if (!product) return;
     navigator.clipboard.writeText(product.owner);
     setCopied(true);
     setTimeout(() => setCopied(false), 2000);
-  };
+  }, [product]);
 
   const shortenAddress = (addr: string) => `${addr.slice(0, 10)}...${addr.slice(-8)}`;
 
+  // Guard: no product to show
+  if (!product) return null;
+
   return (
     <>
-      <Dialog open={open} onClose={onClose}>
-        <DialogTitle>
+      <Dialog
+        open={!!productId}
+        onClose={onClose}
+        maxWidth="md"
+        fullWidth
+        scroll="paper"
+        slotProps={{
+          paper: {
+            sx: {
+              bgcolor: 'background.paper',
+              borderRadius: 3,
+              border: '1px solid rgba(124,58,237,0.2)',
+              maxHeight: '90vh',
+            }
+          }
+        }}
+      >
+        <DialogTitle sx={{ pb: 1 }}>
           <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-            <Typography variant="h5" sx={{ fontWeight: 700 }}>{product.name}</Typography>
-            <IconButton onClick={onClose}><Close /></IconButton>
+            <Typography variant="h5" sx={{ fontWeight: 700, pr: 2 }}>
+              {product.name}
+            </Typography>
+            <IconButton onClick={onClose} size="small">
+              <Close />
+            </IconButton>
           </Box>
         </DialogTitle>
 
@@ -108,13 +161,15 @@ export default function ProductDetail({ product, open, onClose }: ProductDetailP
             display: 'flex',
             flexDirection: { xs: 'column', md: 'row' },
             gap: 3,
-            minWidth: { md: 700 },
           }}>
-            <Box sx={{ flex: 1, minWidth: 0 }}>
+            {/* Image Column */}
+            <Box sx={{ flex: { xs: 1, md: '0 0 45%' }, minWidth: 0 }}>
               <Box sx={{
                 borderRadius: 2,
                 overflow: 'hidden',
                 border: '1px solid rgba(124,58,237,0.2)',
+                position: 'sticky',
+                top: 0,
               }}>
                 <img
                   src={product.image}
@@ -124,7 +179,8 @@ export default function ProductDetail({ product, open, onClose }: ProductDetailP
               </Box>
             </Box>
 
-            <Box sx={{ flex: 1, display: 'flex', flexDirection: 'column', gap: 2 }}>
+            {/* Info Column */}
+            <Box sx={{ flex: 1, display: 'flex', flexDirection: 'column', gap: 2, minWidth: 0 }}>
               <Box sx={{ display: 'flex', gap: 1, flexWrap: 'wrap' }}>
                 <Chip label={product.category} color="primary" size="small" />
                 {product.isForSale ? (
@@ -169,7 +225,9 @@ export default function ProductDetail({ product, open, onClose }: ProductDetailP
                   </Box>
                   <Box sx={{ display: 'flex', justifyContent: 'space-between' }}>
                     <Typography variant="body2">Owner Receives</Typography>
-                    <Typography variant="body2" sx={{ fontWeight: 600, color: 'success.main' }}>{ownerReceives.toFixed(4)} ETH</Typography>
+                    <Typography variant="body2" sx={{ fontWeight: 600, color: 'success.main' }}>
+                      {ownerReceives.toFixed(4)} ETH
+                    </Typography>
                   </Box>
                 </Box>
               )}
@@ -205,6 +263,7 @@ export default function ProductDetail({ product, open, onClose }: ProductDetailP
               {error && <Alert severity="error" onClose={() => setError('')}>{error}</Alert>}
               {success && <Alert severity="success" onClose={() => setSuccess('')}>{success}</Alert>}
 
+              {/* Action Buttons */}
               <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1, mt: 1 }}>
                 {product.isForSale && !owned && isConnected && (
                   <Button
@@ -222,6 +281,12 @@ export default function ProductDetail({ product, open, onClose }: ProductDetailP
                   >
                     {loading ? 'Processing...' : `Purchase for ${product.price} ETH`}
                   </Button>
+                )}
+
+                {product.isForSale && !owned && !isConnected && (
+                  <Alert severity="info" sx={{ textAlign: 'center' }}>
+                    Connect your wallet to purchase this product
+                  </Alert>
                 )}
 
                 {owned && (
@@ -289,7 +354,20 @@ export default function ProductDetail({ product, open, onClose }: ProductDetailP
         </DialogContent>
       </Dialog>
 
-      <Dialog open={showSellDialog} onClose={() => setShowSellDialog(false)}>
+      {/* Sell Sub-dialog */}
+      <Dialog
+        open={showSellDialog}
+        onClose={() => setShowSellDialog(false)}
+        slotProps={{
+          paper: {
+            sx: {
+              bgcolor: 'background.paper',
+              borderRadius: 2,
+              minWidth: { xs: 'auto', sm: 400 },
+            }
+          }
+        }}
+      >
         <DialogTitle>List for Sale</DialogTitle>
         <DialogContent>
           <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
