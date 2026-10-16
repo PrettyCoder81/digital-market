@@ -9,6 +9,7 @@ import {
   ShoppingCart, Menu as MenuIcon, Dashboard, Receipt
 } from '@mui/icons-material';
 import { useMarketplace } from '../context/MarketplaceContext';
+import WalletSwitcher from './WalletSwitcher';
 
 interface NavbarProps {
   onAdminClick: () => void;
@@ -98,6 +99,7 @@ export default function Navbar({ onAdminClick, onTransactionsClick, currentView,
                   onClick={(e) => setAnchorEl(e.currentTarget)}
                   sx={{ cursor: 'pointer' }}
                 />
+                <WalletSwitcher />
                 <Menu
                   anchorEl={anchorEl}
                   open={Boolean(anchorEl)}

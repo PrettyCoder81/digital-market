@@ -12,6 +12,7 @@ interface MarketplaceContextType {
   isConnected: boolean;
   connectWallet: () => Promise<void>;
   disconnectWallet: () => void;
+  switchWallet: (address: string) => void;
   purchaseProduct: (productId: string) => Promise<void>;
   transferOwnership: (productId: string, newOwner: string) => Promise<void>;
   withdrawFunds: () => Promise<void>;
@@ -24,7 +25,12 @@ interface MarketplaceContextType {
 
 const MarketplaceContext = createContext<MarketplaceContextType | undefined>(undefined);
 
-const MARKETPLACE_OWNER = '0x742d35Cc6634C0532925a3b844Bc9e7595f2bD18';
+export const MARKETPLACE_OWNER = '0x742d35Cc6634C0532925a3b844Bc9e7595f2bD18';
+export const MOCK_WALLETS = [
+  { address: '0x742d35Cc6634C0532925a3b844Bc9e7595f2bD18', name: 'Admin (Owner)' },
+  { address: '0x1234567890123456789012345678901234567890', name: 'Regular User 1' },
+  { address: '0xabcdefabcdefabcdefabcdefabcdefabcdefabcd', name: 'Regular User 2' },
+];
 
 export function MarketplaceProvider({ children }: { children: ReactNode }) {
   const [products, setProducts] = useState<Product[]>(initialProducts);
@@ -37,10 +43,14 @@ export function MarketplaceProvider({ children }: { children: ReactNode }) {
   const isOwner = connectedAccount?.toLowerCase() === MARKETPLACE_OWNER.toLowerCase();
 
   const connectWallet = useCallback(async () => {
-    // Simulate wallet connection
+    // Simulate wallet connection - default to admin for backward compatibility
     await new Promise(resolve => setTimeout(resolve, 1000));
     const mockAddress = MARKETPLACE_OWNER;
     setConnectedAccount(mockAddress);
+  }, []);
+
+  const switchWallet = useCallback((address: string) => {
+    setConnectedAccount(address);
   }, []);
 
   const disconnectWallet = useCallback(() => {
@@ -158,6 +168,7 @@ export function MarketplaceProvider({ children }: { children: ReactNode }) {
       isConnected,
       connectWallet,
       disconnectWallet,
+      switchWallet,
       purchaseProduct,
       transferOwnership,
       withdrawFunds,
