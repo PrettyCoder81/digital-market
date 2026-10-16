@@ -7,6 +7,7 @@ import {
   Receipt, ShoppingCart, Send, Tag, ArrowForward
 } from '@mui/icons-material';
 import { useMarketplace } from '../context/MarketplaceContext';
+import CopyAddress from './CopyAddress';
 
 export default function TransactionsPanel() {
   const { transactions, products } = useMarketplace();
@@ -37,8 +38,6 @@ export default function TransactionsPanel() {
   const formatDate = (timestamp: number) => {
     return new Date(timestamp).toLocaleString();
   };
-
-  const shortenAddress = (addr: string) => `${addr.slice(0, 8)}...${addr.slice(-6)}`;
 
   return (
     <Box sx={{ maxWidth: 800, mx: 'auto', py: 4 }}>
@@ -89,16 +88,12 @@ export default function TransactionsPanel() {
                     }
                     secondary={
                       <Box sx={{ mt: 0.5 }}>
-                        <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
-                          <Typography variant="caption" sx={{ fontFamily: 'monospace' }}>
-                            {shortenAddress(tx.from)}
-                          </Typography>
-                          <ArrowForward sx={{ fontSize: 14 }} />
-                          <Typography variant="caption" sx={{ fontFamily: 'monospace' }}>
-                            {shortenAddress(tx.to)}
-                          </Typography>
+                        <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5, flexWrap: 'wrap' }}>
+                          <CopyAddress address={tx.from} shorten={true} size="small" />
+                          <ArrowForward sx={{ fontSize: 14, mx: 0.5 }} />
+                          <CopyAddress address={tx.to} shorten={true} size="small" />
                         </Box>
-                        <Typography variant="caption" color="text.secondary">
+                        <Typography variant="caption" color="text.secondary" sx={{ mt: 0.5, display: 'block' }}>
                           {formatDate(tx.timestamp)}
                         </Typography>
                       </Box>

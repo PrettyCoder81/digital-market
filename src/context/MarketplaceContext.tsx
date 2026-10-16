@@ -19,6 +19,7 @@ interface MarketplaceContextType {
   updatePlatformFee: (newFee: number) => void;
   listForSale: (productId: string, price: string) => void;
   delistProduct: (productId: string) => void;
+  addProduct: (product: Omit<Product, 'id' | 'owner' | 'createdAt'>) => void;
   isOwner: boolean;
   isProductOwner: (productId: string) => boolean;
 }
@@ -151,6 +152,19 @@ export function MarketplaceProvider({ children }: { children: ReactNode }) {
     ));
   }, [connectedAccount, products]);
 
+  const addProduct = useCallback((productData: Omit<Product, 'id' | 'owner' | 'createdAt'>) => {
+    if (!connectedAccount) throw new Error('Wallet not connected');
+    
+    const newProduct: Product = {
+      ...productData,
+      id: `product-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
+      owner: connectedAccount,
+      createdAt: Date.now(),
+    };
+    
+    setProducts(prev => [newProduct, ...prev]);
+  }, [connectedAccount]);
+
   const isProductOwner = useCallback((productId: string) => {
     if (!connectedAccount) return false;
     const product = products.find(p => p.id === productId);
@@ -175,6 +189,7 @@ export function MarketplaceProvider({ children }: { children: ReactNode }) {
       updatePlatformFee,
       listForSale,
       delistProduct,
+      addProduct,
       isOwner,
       isProductOwner,
     }}>

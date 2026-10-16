@@ -6,10 +6,12 @@ import {
 } from '@mui/material';
 import {
   AccountBalanceWallet, Store, AdminPanelSettings, Logout,
-  ShoppingCart, Menu as MenuIcon, Dashboard, Receipt
+  ShoppingCart, Menu as MenuIcon, Dashboard, Receipt, Add
 } from '@mui/icons-material';
 import { useMarketplace } from '../context/MarketplaceContext';
 import WalletSwitcher from './WalletSwitcher';
+import AddProductDialog from './AddProductDialog';
+import CopyAddress from './CopyAddress';
 
 interface NavbarProps {
   onAdminClick: () => void;
@@ -22,8 +24,7 @@ export default function Navbar({ onAdminClick, onTransactionsClick, currentView,
   const { connectedAccount, isConnected, connectWallet, disconnectWallet, isOwner, transactions } = useMarketplace();
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [anchorEl, setAnchorEl] = useState<null | HTMLElement>(null);
-
-  const shortenAddress = (addr: string) => `${addr.slice(0, 6)}...${addr.slice(-4)}`;
+  const [addProductOpen, setAddProductOpen] = useState(false);
 
   return (
     <>
@@ -70,6 +71,20 @@ export default function Navbar({ onAdminClick, onTransactionsClick, currentView,
             >
               My Items
             </Button>
+            {isConnected && (
+              <Button
+                variant="contained"
+                color="success"
+                onClick={() => setAddProductOpen(true)}
+                startIcon={<Add />}
+                sx={{
+                  background: 'linear-gradient(135deg, #10b981, #06b6d4)',
+                  '&:hover': { background: 'linear-gradient(135deg, #059669, #0891b2)' },
+                }}
+              >
+                Add Product
+              </Button>
+            )}
             {isOwner && (
               <Button
                 color={currentView === 'admin' ? 'primary' : 'inherit'}
@@ -91,14 +106,19 @@ export default function Navbar({ onAdminClick, onTransactionsClick, currentView,
             )}
             {isConnected ? (
               <>
-                <Chip
-                  avatar={<Avatar sx={{ bgcolor: 'primary.main' }}>{connectedAccount?.[2]}</Avatar>}
-                  label={shortenAddress(connectedAccount!)}
-                  variant="outlined"
-                  color="primary"
-                  onClick={(e) => setAnchorEl(e.currentTarget)}
-                  sx={{ cursor: 'pointer' }}
-                />
+                <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                  <Avatar 
+                    sx={{ bgcolor: 'primary.main', width: 32, height: 32, cursor: 'pointer' }}
+                    onClick={(e) => setAnchorEl(e.currentTarget)}
+                  >
+                    {connectedAccount?.[2]}
+                  </Avatar>
+                  <CopyAddress 
+                    address={connectedAccount!} 
+                    shorten={true}
+                    size="small"
+                  />
+                </Box>
                 <WalletSwitcher />
                 <Menu
                   anchorEl={anchorEl}
@@ -158,6 +178,12 @@ export default function Navbar({ onAdminClick, onTransactionsClick, currentView,
             <ListItemIcon><Dashboard color="primary" /></ListItemIcon>
             <ListItemText primary="My Items" />
           </ListItem>
+          {isConnected && (
+            <ListItem onClick={() => { setAddProductOpen(true); setMobileMenuOpen(false); }} sx={{ cursor: 'pointer' }}>
+              <ListItemIcon><Add sx={{ color: 'success.main' }} /></ListItemIcon>
+              <ListItemText primary="Add Product" />
+            </ListItem>
+          )}
           {isOwner && (
             <ListItem onClick={() => { onAdminClick(); setMobileMenuOpen(false); }} sx={{ cursor: 'pointer' }}>
               <ListItemIcon><AdminPanelSettings color="primary" /></ListItemIcon>
@@ -166,6 +192,12 @@ export default function Navbar({ onAdminClick, onTransactionsClick, currentView,
           )}
         </List>
       </Drawer>
+
+      {/* Add Product Dialog */}
+      <AddProductDialog
+        open={addProductOpen}
+        onClose={() => setAddProductOpen(false)}
+      />
     </>
   );
 }

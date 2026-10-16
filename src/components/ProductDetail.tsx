@@ -1,15 +1,15 @@
 import React, { useState, useMemo, useEffect, useCallback } from 'react';
 import {
   Dialog, DialogTitle, DialogContent, DialogActions, Typography, Button, Box,
-  Chip, IconButton, Divider, TextField, Alert, CircularProgress,
-  Tooltip
+  Chip, IconButton, Divider, TextField, Alert, CircularProgress
 } from '@mui/material';
 import {
-  Close, ShoppingCart, Send, ContentCopy, OpenInNew,
+  Close, ShoppingCart, Send, OpenInNew,
   AccountBalance, Sell
 } from '@mui/icons-material';
 import { Product } from '../types';
 import { useMarketplace } from '../context/MarketplaceContext';
+import CopyAddress from './CopyAddress';
 
 interface ProductDetailProps {
   productId: string | null;
@@ -35,7 +35,6 @@ export default function ProductDetail({ productId, onClose }: ProductDetailProps
   const [showTransfer, setShowTransfer] = useState(false);
   const [showSellDialog, setShowSellDialog] = useState(false);
   const [sellPrice, setSellPrice] = useState('');
-  const [copied, setCopied] = useState(false);
 
   // Reset all internal states when product changes or dialog closes
   useEffect(() => {
@@ -46,7 +45,6 @@ export default function ProductDetail({ productId, onClose }: ProductDetailProps
     setShowSellDialog(false);
     setSellPrice('');
     setLoading(false);
-    setCopied(false);
   }, [productId]);
 
   const owned = product ? isProductOwner(product.id) : false;
@@ -113,15 +111,6 @@ export default function ProductDetail({ productId, onClose }: ProductDetailProps
       setError(err.message || 'Failed to delist product');
     }
   }, [product, delistProduct]);
-
-  const copyAddress = useCallback(() => {
-    if (!product) return;
-    navigator.clipboard.writeText(product.owner);
-    setCopied(true);
-    setTimeout(() => setCopied(false), 2000);
-  }, [product]);
-
-  const shortenAddress = (addr: string) => `${addr.slice(0, 10)}...${addr.slice(-8)}`;
 
   // Guard: no product to show
   if (!product) return null;
@@ -234,15 +223,8 @@ export default function ProductDetail({ productId, onClose }: ProductDetailProps
 
               <Box>
                 <Typography variant="caption" color="text.secondary">Owner</Typography>
-                <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                  <Typography variant="body2" sx={{ fontFamily: 'monospace' }}>
-                    {shortenAddress(product.owner)}
-                  </Typography>
-                  <Tooltip title={copied ? 'Copied!' : 'Copy address'}>
-                    <IconButton size="small" onClick={copyAddress}>
-                      <ContentCopy fontSize="small" />
-                    </IconButton>
-                  </Tooltip>
+                <Box sx={{ mt: 0.5 }}>
+                  <CopyAddress address={product.owner} shorten={true} />
                 </Box>
               </Box>
 

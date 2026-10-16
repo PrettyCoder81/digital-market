@@ -8,11 +8,12 @@ import {
   TrendingUp, Shield
 } from '@mui/icons-material';
 import { useMarketplace } from '../context/MarketplaceContext';
+import CopyAddress from './CopyAddress';
 
 export default function AdminPanel() {
   const {
     platformFee, contractBalance, isOwner, withdrawFunds, updatePlatformFee,
-    products, transactions
+    products, transactions, owner
   } = useMarketplace();
 
   const [newFee, setNewFee] = useState(platformFee.toString());
@@ -67,13 +68,20 @@ export default function AdminPanel() {
 
   return (
     <Box sx={{ maxWidth: 900, mx: 'auto', py: 4 }}>
-      <Box sx={{ display: 'flex', alignItems: 'center', gap: 2, mb: 4 }}>
+      <Box sx={{ display: 'flex', alignItems: 'center', gap: 2, mb: 2 }}>
         <AdminPanelSettings sx={{ fontSize: 40, color: 'primary.main' }} />
         <Box>
           <Typography variant="h4" sx={{ fontWeight: 700 }}>Admin Panel</Typography>
           <Typography variant="body2" color="text.secondary">
             Manage marketplace settings and withdraw funds
           </Typography>
+        </Box>
+      </Box>
+      
+      <Box sx={{ mb: 4, p: 2, bgcolor: 'rgba(124,58,237,0.05)', borderRadius: 2, border: '1px solid rgba(124,58,237,0.2)' }}>
+        <Typography variant="caption" color="text.secondary">Owner Address</Typography>
+        <Box sx={{ mt: 0.5 }}>
+          <CopyAddress address={owner} shorten={false} size="small" />
         </Box>
       </Box>
 
