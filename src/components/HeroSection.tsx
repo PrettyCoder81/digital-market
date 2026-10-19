@@ -1,13 +1,17 @@
 import React from 'react';
-import { Box, Typography, Button, Container } from '@mui/material';
+import { Box, Typography, Button, Container, Chip } from '@mui/material';
 import ArrowForwardIcon from '@mui/icons-material/ArrowForward';
 import AutoAwesomeIcon from '@mui/icons-material/AutoAwesome';
+import AccountBalanceWalletIcon from '@mui/icons-material/AccountBalanceWallet';
+import CheckCircleIcon from '@mui/icons-material/CheckCircle';
+import { useWallet } from '../context/WalletContext';
 
 interface HeroProps {
   onNavigate: (page: any) => void;
 }
 
 export default function HeroSection({ onNavigate }: HeroProps) {
+  const { isConnected, isCorrectNetwork, connect, switchToSepolia, shortAddress } = useWallet();
   return (
     <Box className="hero-section">
       <div className="hero-bg" />
@@ -177,8 +181,76 @@ export default function HeroSection({ onNavigate }: HeroProps) {
             </Button>
           </Box>
 
+          {/* Wallet Connection Status */}
+          <Box sx={{ mt: 5 }}>
+            {!isConnected ? (
+              <Box
+                sx={{
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: 2,
+                  px: 3,
+                  py: 1.5,
+                  borderRadius: '16px',
+                  background: 'rgba(108, 92, 231, 0.1)',
+                  border: '1px solid rgba(108, 92, 231, 0.2)',
+                  backdropFilter: 'blur(10px)',
+                }}
+              >
+                <AccountBalanceWalletIcon sx={{ color: '#a29bfe' }} />
+                <Typography variant="body2" sx={{ color: '#b8b8d4' }}>
+                  Connect your wallet to start trading
+                </Typography>
+                <Button
+                  variant="contained"
+                  size="small"
+                  startIcon={<AccountBalanceWalletIcon />}
+                  onClick={connect}
+                  sx={{
+                    background: 'linear-gradient(135deg, #6c5ce7, #00cec9)',
+                    boxShadow: '0 4px 15px rgba(108, 92, 231, 0.3)',
+                  }}
+                >
+                  Connect
+                </Button>
+              </Box>
+            ) : (
+              <Box
+                sx={{
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: 2,
+                  px: 3,
+                  py: 1.5,
+                  borderRadius: '16px',
+                  background: isCorrectNetwork ? 'rgba(0, 206, 201, 0.1)' : 'rgba(253, 121, 168, 0.1)',
+                  border: isCorrectNetwork ? '1px solid rgba(0, 206, 201, 0.2)' : '1px solid rgba(253, 121, 168, 0.2)',
+                  backdropFilter: 'blur(10px)',
+                }}
+              >
+                <CheckCircleIcon sx={{ color: isCorrectNetwork ? '#00cec9' : '#fd79a8' }} />
+                <Typography variant="body2" sx={{ color: isCorrectNetwork ? '#00cec9' : '#fd79a8', fontWeight: 600 }}>
+                  {isCorrectNetwork ? `Connected: ${shortAddress}` : 'Wrong Network — Please switch to Sepolia'}
+                </Typography>
+                {!isCorrectNetwork && (
+                  <Button
+                    variant="contained"
+                    size="small"
+                    onClick={switchToSepolia}
+                    sx={{
+                      background: 'linear-gradient(135deg, #fd79a8, #e84393)',
+                      boxShadow: '0 4px 15px rgba(253, 121, 168, 0.3)',
+                    }}
+                  >
+                    Switch Network
+                  </Button>
+                )}
+              </Box>
+            )}
+          </Box>
+
           {/* Stats mini */}
-          <Box sx={{ display: 'flex', gap: 4, mt: 6 }}>
+          <Box sx={{ display: 'flex', gap: 4, mt: 4 }}>
             {[
               { value: '100%', label: 'Decentralized' },
               { value: 'IPFS', label: 'Storage' },

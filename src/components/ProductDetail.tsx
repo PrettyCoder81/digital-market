@@ -14,6 +14,8 @@ import EditIcon from '@mui/icons-material/Edit';
 import ToggleOnIcon from '@mui/icons-material/ToggleOn';
 import ToggleOffIcon from '@mui/icons-material/ToggleOff';
 import CalendarTodayIcon from '@mui/icons-material/CalendarToday';
+import AccountBalanceWalletIcon from '@mui/icons-material/AccountBalanceWallet';
+import { useWallet } from '../context/WalletContext';
 
 interface ProductDetailProps {
   productId: number;
@@ -33,6 +35,7 @@ const demoProduct = {
 };
 
 export default function ProductDetail({ productId, onBack }: ProductDetailProps) {
+  const { isConnected, isCorrectNetwork, address, connect, switchToSepolia } = useWallet();
   const [transferAddress, setTransferAddress] = useState('');
   const [loading, setLoading] = useState(false);
   const [action, setAction] = useState('');
@@ -42,6 +45,9 @@ export default function ProductDetail({ productId, onBack }: ProductDetailProps)
   const [editName, setEditName] = useState(demoProduct.name);
   const [editDescription, setEditDescription] = useState(demoProduct.description);
   const [editPrice, setEditPrice] = useState('150');
+
+  // Check if connected wallet is the owner
+  const isOwner = address?.toLowerCase() === demoProduct.owner.toLowerCase();
 
   const formatPrice = (wei: string) => {
     try {
@@ -324,49 +330,85 @@ export default function ProductDetail({ productId, onBack }: ProductDetailProps)
 
             {/* Actions */}
             <Box sx={{ display: 'flex', gap: 2, mb: 3, flexWrap: 'wrap' }}>
-              <Button
-                variant="contained"
-                size="large"
-                startIcon={loading && action === 'buy' ? <CircularProgress size={20} /> : <ShoppingCartIcon />}
-                onClick={handleBuy}
-                disabled={loading || !demoProduct.listed}
-                className="btn-glow"
-                sx={{
-                  background: 'linear-gradient(135deg, #6c5ce7, #00cec9)',
-                  boxShadow: '0 8px 30px rgba(108, 92, 231, 0.4)',
-                  flex: 1,
-                  minWidth: '200px',
-                }}
-              >
-                Buy Now
-              </Button>
-              <Button
-                variant="outlined"
-                size="large"
-                startIcon={loading && action === 'listing' ? <CircularProgress size={20} /> : (demoProduct.listed ? <ToggleOffIcon /> : <ToggleOnIcon />)}
-                onClick={handleToggleListing}
-                disabled={loading}
-                sx={{
-                  borderColor: 'rgba(0, 206, 201, 0.5)',
-                  color: '#00cec9',
-                  '&:hover': { borderColor: '#00cec9', background: 'rgba(0, 206, 201, 0.1)' },
-                }}
-              >
-                {demoProduct.listed ? 'Unlist' : 'List'}
-              </Button>
-              <Button
-                variant="outlined"
-                size="large"
-                startIcon={<EditIcon />}
-                onClick={() => setIsEditing(true)}
-                sx={{
-                  borderColor: 'rgba(162, 155, 254, 0.5)',
-                  color: '#a29bfe',
-                  '&:hover': { borderColor: '#a29bfe', background: 'rgba(162, 155, 254, 0.1)' },
-                }}
-              >
-                Edit
-              </Button>
+              {!isConnected ? (
+                <Button
+                  variant="contained"
+                  size="large"
+                  startIcon={<AccountBalanceWalletIcon />}
+                  onClick={connect}
+                  className="btn-glow"
+                  sx={{
+                    background: 'linear-gradient(135deg, #6c5ce7, #00cec9)',
+                    boxShadow: '0 8px 30px rgba(108, 92, 231, 0.4)',
+                    flex: 1,
+                    minWidth: '200px',
+                  }}
+                >
+                  Connect Wallet to Buy
+                </Button>
+              ) : !isCorrectNetwork ? (
+                <Button
+                  variant="contained"
+                  size="large"
+                  onClick={switchToSepolia}
+                  sx={{
+                    background: 'linear-gradient(135deg, #fd79a8, #e84393)',
+                    boxShadow: '0 8px 30px rgba(253, 121, 168, 0.4)',
+                    flex: 1,
+                    minWidth: '200px',
+                  }}
+                >
+                  Switch to Sepolia
+                </Button>
+              ) : (
+                <Button
+                  variant="contained"
+                  size="large"
+                  startIcon={loading && action === 'buy' ? <CircularProgress size={20} /> : <ShoppingCartIcon />}
+                  onClick={handleBuy}
+                  disabled={loading || !demoProduct.listed || isOwner}
+                  className="btn-glow"
+                  sx={{
+                    background: 'linear-gradient(135deg, #6c5ce7, #00cec9)',
+                    boxShadow: '0 8px 30px rgba(108, 92, 231, 0.4)',
+                    flex: 1,
+                    minWidth: '200px',
+                  }}
+                >
+                  {isOwner ? "You Own This" : "Buy Now"}
+                </Button>
+              )}
+              {isConnected && isOwner && (
+                <>
+                  <Button
+                    variant="outlined"
+                    size="large"
+                    startIcon={loading && action === 'listing' ? <CircularProgress size={20} /> : (demoProduct.listed ? <ToggleOffIcon /> : <ToggleOnIcon />)}
+                    onClick={handleToggleListing}
+                    disabled={loading}
+                    sx={{
+                      borderColor: 'rgba(0, 206, 201, 0.5)',
+                      color: '#00cec9',
+                      '&:hover': { borderColor: '#00cec9', background: 'rgba(0, 206, 201, 0.1)' },
+                    }}
+                  >
+                    {demoProduct.listed ? 'Unlist' : 'List'}
+                  </Button>
+                  <Button
+                    variant="outlined"
+                    size="large"
+                    startIcon={<EditIcon />}
+                    onClick={() => setIsEditing(true)}
+                    sx={{
+                      borderColor: 'rgba(162, 155, 254, 0.5)',
+                      color: '#a29bfe',
+                      '&:hover': { borderColor: '#a29bfe', background: 'rgba(162, 155, 254, 0.1)' },
+                    }}
+                  >
+                    Edit
+                  </Button>
+                </>
+              )}
             </Box>
 
             <Divider sx={{ borderColor: 'rgba(108, 92, 231, 0.15)', mb: 3 }} />
@@ -376,37 +418,45 @@ export default function ProductDetail({ productId, onBack }: ProductDetailProps)
               <SwapHorizIcon sx={{ color: '#fd79a8' }} />
               Transfer Ownership
             </Typography>
-            <Typography variant="body2" sx={{ color: '#b8b8d4', mb: 2 }}>
-              Transfer this product to another wallet address. The product will be automatically unlisted after transfer.
-            </Typography>
-            <Box sx={{ display: 'flex', gap: 2, flexWrap: 'wrap' }}>
-              <TextField
-                placeholder="0x... recipient address"
-                value={transferAddress}
-                onChange={(e) => setTransferAddress(e.target.value)}
-                sx={{
-                  flex: 1,
-                  minWidth: '250px',
-                  '& .MuiOutlinedInput-root': {
-                    borderRadius: '12px',
-                    background: 'rgba(255,255,255,0.03)',
-                  },
-                }}
-              />
-              <Button
-                variant="outlined"
-                onClick={handleTransfer}
-                disabled={loading}
-                startIcon={loading && action === 'transfer' ? <CircularProgress size={20} /> : <SwapHorizIcon />}
-                sx={{
-                  borderColor: 'rgba(253, 121, 168, 0.5)',
-                  color: '#fd79a8',
-                  '&:hover': { borderColor: '#fd79a8', background: 'rgba(253, 121, 168, 0.1)' },
-                }}
-              >
-                Transfer
-              </Button>
-            </Box>
+            {isConnected && isOwner ? (
+              <>
+                <Typography variant="body2" sx={{ color: '#b8b8d4', mb: 2 }}>
+                  Transfer this product to another wallet address. The product will be automatically unlisted after transfer.
+                </Typography>
+                <Box sx={{ display: 'flex', gap: 2, flexWrap: 'wrap' }}>
+                  <TextField
+                    placeholder="0x... recipient address"
+                    value={transferAddress}
+                    onChange={(e) => setTransferAddress(e.target.value)}
+                    sx={{
+                      flex: 1,
+                      minWidth: '250px',
+                      '& .MuiOutlinedInput-root': {
+                        borderRadius: '12px',
+                        background: 'rgba(255,255,255,0.03)',
+                      },
+                    }}
+                  />
+                  <Button
+                    variant="outlined"
+                    onClick={handleTransfer}
+                    disabled={loading}
+                    startIcon={loading && action === 'transfer' ? <CircularProgress size={20} /> : <SwapHorizIcon />}
+                    sx={{
+                      borderColor: 'rgba(253, 121, 168, 0.5)',
+                      color: '#fd79a8',
+                      '&:hover': { borderColor: '#fd79a8', background: 'rgba(253, 121, 168, 0.1)' },
+                    }}
+                  >
+                    Transfer
+                  </Button>
+                </Box>
+              </>
+            ) : (
+              <Alert severity="info" sx={{ borderRadius: '12px' }}>
+                {isConnected ? 'Only the product owner can transfer ownership.' : 'Connect your wallet to transfer ownership.'}
+              </Alert>
+            )}
           </Box>
         </Box>
       </Container>

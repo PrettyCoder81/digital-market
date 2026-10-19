@@ -318,3 +318,59 @@ body {
   border-bottom: 2px solid var(--primary);
   color: var(--primary-light);
 }
+
+/* Wallet connection animations */
+@keyframes pulse-ring {
+  0% {
+    transform: scale(0.95);
+    box-shadow: 0 0 0 0 rgba(0, 206, 201, 0.4);
+  }
+  70% {
+    transform: scale(1);
+    box-shadow: 0 0 0 10px rgba(0, 206, 201, 0);
+  }
+  100% {
+    transform: scale(0.95);
+    box-shadow: 0 0 0 0 rgba(0, 206, 201, 0);
+  }
+}
+
+@keyframes wallet-connected {
+  0% { background-position: 0% 50%; }
+  50% { background-position: 100% 50%; }
+  100% { background-position: 0% 50%; }
+}
+
+.wallet-pulse {
+  animation: pulse-ring 2s cubic-bezier(0.455, 0.03, 0.515, 0.955) infinite;
+}
+
+.wallet-connected-badge {
+  background: linear-gradient(90deg, rgba(0, 206, 201, 0.15), rgba(108, 92, 231, 0.15), rgba(0, 206, 201, 0.15));
+  background-size: 200% 100%;
+  animation: wallet-connected 3s ease infinite;
+}
+
+/* Connection status dot */
+.connection-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  display: inline-block;
+  margin-right: 6px;
+}
+
+.connection-dot-connected {
+  background: #00cec9;
+  box-shadow: 0 0 8px rgba(0, 206, 201, 0.6);
+}
+
+.connection-dot-disconnected {
+  background: #fd79a8;
+  box-shadow: 0 0 8px rgba(253, 121, 168, 0.6);
+}
+
+.connection-dot-wrong-network {
+  background: #ffeaa7;
+  box-shadow: 0 0 8px rgba(255, 234, 167, 0.6);
+}

@@ -6,6 +6,8 @@ import {
 import CloudUploadIcon from '@mui/icons-material/CloudUpload';
 import CheckCircleIcon from '@mui/icons-material/CheckCircle';
 import ImageIcon from '@mui/icons-material/Image';
+import AccountBalanceWalletIcon from '@mui/icons-material/AccountBalanceWallet';
+import { useWallet } from '../context/WalletContext';
 
 interface CreateProductProps {
   onCreated: () => void;
@@ -14,6 +16,7 @@ interface CreateProductProps {
 const steps = ['Upload Image', 'Product Details', 'Approve & Create'];
 
 export default function CreateProduct({ onCreated }: CreateProductProps) {
+  const { isConnected, isCorrectNetwork, connect, switchToSepolia } = useWallet();
   const [activeStep, setActiveStep] = useState(0);
   const [imageFile, setImageFile] = useState<File | null>(null);
   const [imagePreview, setImagePreview] = useState<string>('');
@@ -103,6 +106,93 @@ export default function CreateProduct({ onCreated }: CreateProductProps) {
       setLoading(false);
     }
   };
+
+  // Show wallet connection prompt if not connected
+  if (!isConnected) {
+    return (
+      <Box sx={{ py: 10 }}>
+        <Container maxWidth="sm">
+          <Card sx={{ 
+            background: 'rgba(18, 18, 42, 0.8)', 
+            border: '1px solid rgba(108, 92, 231, 0.15)',
+            textAlign: 'center',
+            py: 6,
+          }}>
+            <CardContent>
+              <AccountBalanceWalletIcon sx={{ fontSize: 80, color: '#6c5ce7', mb: 3 }} />
+              <Typography variant="h4" sx={{ fontWeight: 700, mb: 2 }}>
+                Connect Your Wallet
+              </Typography>
+              <Typography variant="body1" sx={{ color: '#b8b8d4', mb: 4, maxWidth: 400, mx: 'auto' }}>
+                You need to connect your wallet to create a product listing on the marketplace.
+              </Typography>
+              <Button
+                variant="contained"
+                size="large"
+                startIcon={<AccountBalanceWalletIcon />}
+                onClick={connect}
+                className="btn-glow"
+                sx={{
+                  background: 'linear-gradient(135deg, #6c5ce7, #00cec9)',
+                  boxShadow: '0 8px 30px rgba(108, 92, 231, 0.4)',
+                  px: 4,
+                  py: 1.5,
+                }}
+              >
+                Connect Wallet
+              </Button>
+            </CardContent>
+          </Card>
+        </Container>
+      </Box>
+    );
+  }
+
+  // Show network switch prompt if on wrong network
+  if (!isCorrectNetwork) {
+    return (
+      <Box sx={{ py: 10 }}>
+        <Container maxWidth="sm">
+          <Card sx={{ 
+            background: 'rgba(18, 18, 42, 0.8)', 
+            border: '1px solid rgba(253, 121, 168, 0.15)',
+            textAlign: 'center',
+            py: 6,
+          }}>
+            <CardContent>
+              <Box sx={{ 
+                width: 80, height: 80, borderRadius: '50%', 
+                background: 'rgba(253, 121, 168, 0.15)',
+                display: 'flex', alignItems: 'center', justifyContent: 'center',
+                mx: 'auto', mb: 3,
+              }}>
+                <Typography sx={{ fontSize: 40 }}>⚠️</Typography>
+              </Box>
+              <Typography variant="h4" sx={{ fontWeight: 700, mb: 2 }}>
+                Wrong Network
+              </Typography>
+              <Typography variant="body1" sx={{ color: '#b8b8d4', mb: 4, maxWidth: 400, mx: 'auto' }}>
+                Please switch to the Ethereum Sepolia testnet to create product listings.
+              </Typography>
+              <Button
+                variant="contained"
+                size="large"
+                onClick={switchToSepolia}
+                sx={{
+                  background: 'linear-gradient(135deg, #fd79a8, #e84393)',
+                  boxShadow: '0 8px 30px rgba(253, 121, 168, 0.4)',
+                  px: 4,
+                  py: 1.5,
+                }}
+              >
+                Switch to Sepolia
+              </Button>
+            </CardContent>
+          </Card>
+        </Container>
+      </Box>
+    );
+  }
 
   return (
     <Box sx={{ py: 6 }}>
