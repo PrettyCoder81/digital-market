@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { ThemeProvider, createTheme, CssBaseline } from '@mui/material';
+import { WalletProvider } from './context/WalletContext';
 import Navbar from './components/Navbar';
 import HeroSection from './components/HeroSection';
 import ProductList from './components/ProductList';
@@ -121,11 +122,13 @@ function App() {
   return (
     <ThemeProvider theme={darkTheme}>
       <CssBaseline />
-      <div className="min-h-screen grid-bg" style={{ background: '#0a0a1a' }}>
-        <Navbar currentPage={currentPage} onNavigate={navigateTo} />
-        <main>{renderPage()}</main>
-        {currentPage === 'home' && <Footer />}
-      </div>
+      <WalletProvider>
+        <div className="min-h-screen grid-bg" style={{ background: '#0a0a1a' }}>
+          <Navbar currentPage={currentPage} onNavigate={navigateTo} />
+          <main>{renderPage()}</main>
+          {currentPage === 'home' && <Footer />}
+        </div>
+      </WalletProvider>
     </ThemeProvider>
   );
 }
