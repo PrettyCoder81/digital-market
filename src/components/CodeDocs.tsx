@@ -8,14 +8,26 @@ import DnsIcon from '@mui/icons-material/Dns';
 import AccountTreeIcon from '@mui/icons-material/AccountTree';
 
 const contractCode = `// SPDX-License-Identifier: MIT
-pragma solidity ^0.8.20;
+pragma solidity ^0.8.24;
 
+import "@openzeppelin/contracts/access/Ownable.sol";
+import "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
 import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
-import "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
 
-contract DigitalMarketPlace is ReentrancyGuard {
+contract DigitalMarketPlace is Ownable, ReentrancyGuard {
     using SafeERC20 for IERC20;
+
+    IERC20 public immutable paymentToken;
+
+    uint256 public constant FEE_DENOMINATOR = 10_000;
+    uint256 public constant MAX_FEE_BPS = 10_000; // 10%
+    uint256 public platformFeeBps = 500; // 5%
+    
+    uint256 public listingFee = 10 * 10**18; // Default 10 Tokens
+
+    uint256 public nextProductId = 1;
+    uint256 public accruedPlatformFees;
 
     struct Product {
         uint256 id;
@@ -23,101 +35,145 @@ contract DigitalMarketPlace is ReentrancyGuard {
         string description;
         uint256 price;
         string imageURI;
-        address payable owner;
-        address payable seller;
-        bool isListed;
+        address owner;
+        bool listed;
+        uint256 createdAt;
     }
 
-    IERC20 public paymentToken;
-    address public owner;
-    uint256 public productCount;
-    uint256 public platformFeePercent = 5; // 5%
-    uint256 public listingFee = 10 * 10**18; // 10 TONY (18 decimals)
-    
-    mapping(uint256 => Product) public products;
+    mapping(uint256 => Product) private products;
 
-    event ProductCreated(uint256 indexed productId, address indexed seller, string name, uint256 price, string imageURI);
-    event ProductPurchased(uint256 indexed productId, address indexed buyer, uint256 price, uint256 platformFee);
-    event OwnershipTransferred(uint256 indexed productId, address indexed from, address indexed to);
+    event ProductCreated(uint256 indexed productId, address indexed owner, uint256 price);
+    event ProductUpdated(uint256 indexed productId);
+    event ProductListingChanged(uint256 indexed productId, bool listed);
+    event ProductPurchased(uint256 indexed productId, address indexed buyer, address indexed seller, uint256 price, uint256 fee);
+    event ProductOwnershipTransferred(uint256 indexed productId, address indexed previousOwner, address indexed newOwner);
+    event PlatformFeeUpdated(uint256 oldFeeBps, uint256 newFeeBps);
+    event ListingFeeUpdated(uint256 oldFee, uint256 newFee);
+    event PlatformFeesWithdrawn(address indexed recipient, uint256 amount);
 
-    modifier onlyOwner() {
-        require(msg.sender == owner, "Not contract owner");
-        _;
+    constructor(address tokenAddress) Ownable(msg.sender) {
+        require(tokenAddress != address(0), "Invalid token address");
+        paymentToken = IERC20(tokenAddress);
     }
 
-    constructor(address _paymentToken) {
-        paymentToken = IERC20(_paymentToken);
-        owner = msg.sender;
-    }
+    function createProduct(string calldata name, string calldata description, uint256 price, string calldata imageURI) external returns (uint256 productId) {
+        require(bytes(name).length > 0, "Name required");
+        require(price > 0, "Price must be positive");
+        require(bytes(imageURI).length > 0, "Image URI required");
 
-    function createProduct(
-        string memory _name,
-        string memory _description,
-        uint256 _price,
-        string memory _imageURI
-    ) external nonReentrant {
-        require(_price > 0, "Price must be > 0");
-        require(bytes(_name).length > 0, "Name required");
-
-        // Pay listing fee in TonysCoin
+        // Deduct listing fee in TonysCoin
         paymentToken.safeTransferFrom(msg.sender, address(this), listingFee);
 
-        productCount++;
-        products[productCount] = Product({
-            id: productCount,
-            name: _name,
-            description: _description,
-            price: _price,
-            imageURI: _imageURI,
-            owner: payable(msg.sender),
-            seller: payable(msg.sender),
-            isListed: true
+        productId = nextProductId++;
+        products[productId] = Product({
+            id: productId,
+            name: name,
+            description: description,
+            price: price,
+            imageURI: imageURI,
+            owner: msg.sender,
+            listed: true,
+            createdAt: block.timestamp
         });
 
-        emit ProductCreated(productCount, msg.sender, _name, _price, _imageURI);
+        emit ProductCreated(productId, msg.sender, price);
     }
 
-    function buyProduct(uint256 _productId) external nonReentrant {
-        Product storage product = products[_productId];
-        require(product.isListed, "Not listed");
-        require(product.owner != msg.sender, "Cannot buy own product");
+    function getProduct(uint256 productId) external view returns (Product memory) {
+        require(products[productId].id != 0, "Product not found");
+        return products[productId];
+    }
 
-        uint256 fee = (product.price * platformFeePercent) / 100;
-        uint256 sellerAmount = product.price - fee;
+    function getAllProducts() external view returns (Product[] memory) {
+        Product[] memory allProducts = new Product[](nextProductId - 1);
+        for (uint256 i = 1; i < nextProductId; i++) {
+            if (products[i].id != 0) {
+                allProducts[i - 1] = products[i];
+            }
+        }
+        return allProducts;
+    }
 
-        // Transfer payment token
-        paymentToken.safeTransferFrom(msg.sender, product.seller, sellerAmount);
+    function updateProduct(uint256 productId, string calldata name, string calldata description, uint256 price, string calldata imageURI) external {
+        Product storage p = products[productId];
+        require(p.id != 0, "Product not found");
+        require(p.owner == msg.sender, "Not product owner");
+        require(bytes(name).length > 0, "Name required");
+        require(price > 0, "Price must be positive");
+        require(bytes(imageURI).length > 0, "Image URI required");
+
+        p.name = name;
+        p.description = description;
+        p.price = price;
+        p.imageURI = imageURI;
+        emit ProductUpdated(productId);
+    }
+
+    function setListing(uint256 productId, bool isListed) external {
+        Product storage p = products[productId];
+        require(p.id != 0, "Product not found");
+        require(p.owner == msg.sender, "Not product owner");
+        p.listed = isListed;
+        emit ProductListingChanged(productId, isListed);
+    }
+
+    function buyProduct(uint256 productId) external nonReentrant {
+        Product storage p = products[productId];
+        require(p.id != 0, "Product not found");
+        require(p.listed, "Product not listed");
+        require(p.owner != msg.sender, "Cannot buy own product");
+
+        address seller = p.owner;
+        uint256 price = p.price;
+        uint256 fee = (price * platformFeeBps) / FEE_DENOMINATOR;
+        uint256 sellerAmount = price - fee;
+
+        p.listed = false;
+        p.owner = msg.sender;
+
+        paymentToken.safeTransferFrom(msg.sender, seller, sellerAmount);
         paymentToken.safeTransferFrom(msg.sender, address(this), fee);
+        accruedPlatformFees += fee;
 
-        product.owner = payable(msg.sender);
-        product.isListed = false;
-
-        emit ProductPurchased(_productId, msg.sender, product.price, fee);
+        emit ProductPurchased(productId, msg.sender, seller, price, fee);
     }
 
-    function transferProductOwnership(uint256 _productId, address _newOwner) external {
-        Product storage product = products[_productId];
-        require(product.owner == msg.sender, "Not owner");
-        require(_newOwner != address(0), "Invalid address");
+    function transferProductOwnership(uint256 productId, address newOwner) external {
+        Product storage p = products[productId];
+        require(p.id != 0, "Product not found");
+        require(p.owner == msg.sender, "Not product owner");
+        require(newOwner != address(0), "Invalid recipient");
+        require(newOwner != msg.sender, "Already owner");
 
-        product.owner = payable(_newOwner);
-        emit OwnershipTransferred(_productId, msg.sender, _newOwner);
+        address previousOwner = p.owner;
+        p.owner = newOwner;
+        p.listed = false;
+
+        emit ProductOwnershipTransferred(productId, previousOwner, newOwner);
+        emit ProductListingChanged(productId, false);
     }
 
-    // Admin functions
-    function setPlatformFee(uint256 _newFeePercent) external onlyOwner {
-        require(_newFeePercent <= 20, "Fee too high");
-        platformFeePercent = _newFeePercent;
+    function setPlatformFee(uint256 newFeeBps) external onlyOwner {
+        require(newFeeBps <= MAX_FEE_BPS, "Fee exceeds maximum");
+        uint256 oldFeeBps = platformFeeBps;
+        platformFeeBps = newFeeBps;
+        emit PlatformFeeUpdated(oldFeeBps, newFeeBps);
     }
 
-    function setListingFee(uint256 _newListingFee) external onlyOwner {
-        listingFee = _newListingFee;
+    function setListingFee(uint256 newFee) external onlyOwner {
+        uint256 oldFee = listingFee;
+        listingFee = newFee;
+        emit ListingFeeUpdated(oldFee, newFee);
     }
 
-    function withdrawPlatformFees() external onlyOwner {
-        uint256 balance = paymentToken.balanceOf(address(this));
-        require(balance > 0, "No fees to withdraw");
-        paymentToken.safeTransfer(owner, balance);
+    function withdrawPlatformFees(address recipient, uint256 amount) external onlyOwner nonReentrant {
+        require(recipient != address(0), "Invalid recipient");
+        require(amount > 0, "Amount must be positive");
+        require(amount <= accruedPlatformFees, "Insufficient fee balance");
+
+        accruedPlatformFees -= amount;
+        paymentToken.safeTransfer(recipient, amount);
+        emit PlatformFeesWithdrawn(recipient, amount);
     }
 }`;
 
@@ -161,17 +217,16 @@ const productSchema = new mongoose.Schema({
   price: { type: String, required: true },
   imageURI: { type: String, required: true },
   owner: { type: String, required: true },
-  seller: { type: String, required: true },
-  isListed: { type: Boolean, default: true },
+  listed: { type: Boolean, default: true },
+  createdAt: { type: Number, default: Date.now },
   txHash: { type: String },
-  createdAt: { type: Date, default: Date.now },
+  updatedAt: { type: Date, default: Date.now },
 });
 
 export default mongoose.model('Product', productSchema);`;
 
 const ipfsControllerCode = `// src/controllers/ipfsController.js
 import { PinataSDK } from "pinata";
-import path from 'path';
 
 const pinata = new PinataSDK({
   pinataJwt: process.env.PINATA_JWT,
@@ -211,45 +266,113 @@ const tokenContract = new ethers.Contract(
   provider
 );
 
-// Read methods
+// ========== READ METHODS ==========
 export const getProductCount = async () => {
-  return await marketplaceContract.productCount();
+  return await marketplaceContract.nextProductId();
 };
 
 export const getProduct = async (id) => {
-  return await marketplaceContract.products(id);
+  return await marketplaceContract.getProduct(id);
+};
+
+export const getAllProducts = async () => {
+  return await marketplaceContract.getAllProducts();
 };
 
 export const getListingFee = async () => {
   return await marketplaceContract.listingFee();
 };
 
-// Transaction data builders (for frontend signing)
+export const getPlatformFeeBps = async () => {
+  return await marketplaceContract.platformFeeBps();
+};
+
+export const getAccruedFees = async () => {
+  return await marketplaceContract.accruedPlatformFees();
+};
+
+// ========== TRANSACTION DATA BUILDERS (for frontend signing) ==========
+
+/**
+ * Build approve() tx data for TonysCoin.
+ * 
+ * ERC20 APPROVE FLOW:
+ * 1. User must first approve the marketplace contract to spend TonysCoin
+ * 2. For createProduct: approve listingFee amount
+ * 3. For buyProduct: approve product.price amount
+ * 4. Frontend gets this tx data, user signs in wallet, backend broadcasts
+ */
 export const getApproveData = (amount, spender) => {
   const tokenInterface = new ethers.Interface(ERC20_ABI);
   return tokenInterface.encodeFunctionData('approve', [spender, amount]);
 };
 
-export const getCreateProductData = (name, description, price, imageURI) => {
-  return marketplaceContract.createProduct.populateTransaction(
+/**
+ * Build createProduct() tx data
+ * Note: User must have approved listingFee BEFORE this tx is signed
+ */
+export const getCreateProductData = async (name, description, price, imageURI) => {
+  return await marketplaceContract.createProduct.populateTransaction(
     name, description, price, imageURI
   );
 };
 
-// Admin execution (backend signs directly)
+/**
+ * Build buyProduct() tx data
+ * Note: User must have approved product.price BEFORE this tx is signed
+ */
+export const getBuyProductData = async (productId) => {
+  return await marketplaceContract.buyProduct.populateTransaction(productId);
+};
+
+/**
+ * Build transferProductOwnership() tx data
+ */
+export const getTransferData = async (productId, newOwner) => {
+  return await marketplaceContract.transferProductOwnership.populateTransaction(
+    productId, newOwner
+  );
+};
+
+/**
+ * Build setListing() tx data
+ */
+export const getSetListingData = async (productId, isListed) => {
+  return await marketplaceContract.setListing.populateTransaction(productId, isListed);
+};
+
+/**
+ * Build updateProduct() tx data
+ */
+export const getUpdateProductData = async (productId, name, description, price, imageURI) => {
+  return await marketplaceContract.updateProduct.populateTransaction(
+    productId, name, description, price, imageURI
+  );
+};
+
+// ========== BROADCAST SIGNED TX ==========
+export const broadcastTransaction = async (signedTx) => {
+  const tx = await provider.broadcastTransaction(signedTx);
+  return await tx.wait();
+};
+
+// ========== ADMIN EXECUTION (backend signs directly) ==========
 export const adminSetListingFee = async (newFee) => {
   const tx = await marketplaceContract.setListingFee(newFee);
   return await tx.wait();
 };
 
-export const adminWithdrawFees = async () => {
-  const tx = await marketplaceContract.withdrawPlatformFees();
+export const adminSetPlatformFee = async (newFeeBps) => {
+  const tx = await marketplaceContract.setPlatformFee(newFeeBps);
   return await tx.wait();
 };
 
-// Broadcast signed transaction
-export const broadcastTransaction = async (signedTx) => {
-  const tx = await provider.broadcastTransaction(signedTx);
+/**
+ * withdrawPlatformFees takes (recipient, amount)
+ * Backend admin signs this directly
+ */
+export const adminWithdrawFees = async (recipient, amount) => {
+  const tx = await marketplaceContract.withdrawPlatformFees(recipient, amount);
   return await tx.wait();
 };`;
 
@@ -303,7 +426,7 @@ export default function CodeDocs() {
             Project <span className="gradient-text">Architecture</span>
           </Typography>
           <Typography variant="body1" sx={{ color: '#b8b8d4', mt: 1 }}>
-            Complete source code for the Digital Marketplace - Smart Contract, Backend, and Configuration.
+            Complete source code for the Digital Marketplace — Smart Contract (Solidity ^0.8.24), Backend, and Configuration.
           </Typography>
         </Box>
 
@@ -342,7 +465,7 @@ export default function CodeDocs() {
             </Box>
             <Box sx={{ mt: 3, textAlign: 'center' }}>
               <Typography variant="body2" sx={{ color: '#b8b8d4' }}>
-                Frontend → REST API → Backend → Blockchain/IPFS/MongoDB
+                Frontend → REST API → Backend → Blockchain / IPFS / MongoDB
               </Typography>
               <Typography variant="caption" sx={{ color: '#6c5ce7' }}>
                 Strict separation: Frontend never directly connects to Web3 provider
@@ -361,7 +484,7 @@ export default function CodeDocs() {
             sx={{
               borderBottom: '1px solid rgba(108, 92, 231, 0.15)',
               '& .MuiTab-root': { color: '#b8b8d4', textTransform: 'none', fontWeight: 600 },
-              '& .Mui-selected': { color: '#6c5ce7' },
+              '& .Mui-selected': { color: '#6c5ce7 !important' },
             }}
           >
             {tabs.map((tab) => (
@@ -371,7 +494,7 @@ export default function CodeDocs() {
           <CardContent>
             {codeBlocks.map((code, index) => (
               <TabPanel key={index} value={tabValue} index={index}>
-                <Box className="code-block" sx={{ whiteSpace: 'pre-wrap', wordBreak: 'break-word' }}>
+                <Box className="code-block" sx={{ whiteSpace: 'pre-wrap', wordBreak: 'break-word', maxHeight: 600, overflow: 'auto' }}>
                   <code>{code}</code>
                 </Box>
               </TabPanel>
@@ -405,6 +528,43 @@ export default function CodeDocs() {
                   <Box>
                     <Typography variant="body2" sx={{ fontWeight: 600 }}>{item.title}</Typography>
                     <Typography variant="caption" sx={{ color: '#b8b8d4', fontFamily: 'monospace' }}>
+                      {item.desc}
+                    </Typography>
+                  </Box>
+                </Box>
+              ))}
+            </Box>
+          </CardContent>
+        </Card>
+
+        {/* ERC20 Approve Flow */}
+        <Card sx={{ mt: 4, background: 'rgba(18, 18, 42, 0.8)', border: '1px solid rgba(108, 92, 231, 0.12)' }}>
+          <CardContent sx={{ p: 3 }}>
+            <Typography variant="h6" sx={{ fontWeight: 700, mb: 3 }}>
+              💰 ERC20 Approve + Transaction Flow
+            </Typography>
+            <Typography variant="body2" sx={{ color: '#b8b8d4', mb: 3 }}>
+              Since all payments are in TonysCoin (ERC20), users must approve the contract before any token transfer occurs.
+            </Typography>
+            <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+              {[
+                { step: 'A', title: 'Approve Listing Fee', desc: 'User approves marketplace to spend listingFee (10 TONY) via ERC20.approve()' },
+                { step: 'B', title: 'Create Product', desc: 'User signs createProduct() — contract calls safeTransferFrom for listingFee' },
+                { step: 'C', title: 'Approve Purchase Price', desc: 'Buyer approves marketplace to spend product.price via ERC20.approve()' },
+                { step: 'D', title: 'Buy Product', desc: 'Buyer signs buyProduct() — contract splits payment: seller gets (price - 5% fee), contract keeps fee' },
+              ].map((item) => (
+                <Box key={item.step} sx={{ display: 'flex', gap: 2, alignItems: 'flex-start' }}>
+                  <Box sx={{
+                    width: 32, height: 32, borderRadius: '8px',
+                    background: 'linear-gradient(135deg, #fd79a8, #6c5ce7)',
+                    display: 'flex', alignItems: 'center', justifyContent: 'center',
+                    fontWeight: 700, fontSize: '0.875rem', flexShrink: 0,
+                  }}>
+                    {item.step}
+                  </Box>
+                  <Box>
+                    <Typography variant="body2" sx={{ fontWeight: 600 }}>{item.title}</Typography>
+                    <Typography variant="caption" sx={{ color: '#b8b8d4' }}>
                       {item.desc}
                     </Typography>
                   </Box>

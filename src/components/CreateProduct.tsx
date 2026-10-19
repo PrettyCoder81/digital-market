@@ -24,6 +24,10 @@ export default function CreateProduct({ onCreated }: CreateProductProps) {
   const [success, setSuccess] = useState(false);
   const [error, setError] = useState('');
 
+  // Contract constants
+  const LISTING_FEE_TONY = 10; // 10 TONY (default listingFee = 10 * 10^18)
+  const PLATFORM_FEE_BPS = 500; // 5%
+
   const handleImageChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (file) {
@@ -51,16 +55,45 @@ export default function CreateProduct({ onCreated }: CreateProductProps) {
     setLoading(true);
     setError('');
     try {
-      // In production, this would call the backend API:
-      // 1. Upload image to IPFS via backend
-      // 2. Get approve transaction data for listing fee
-      // 3. User signs approve tx in wallet
-      // 4. Backend broadcasts approve tx
-      // 5. Get createProduct transaction data
-      // 6. User signs createProduct tx in wallet
-      // 7. Backend broadcasts createProduct tx
-      
-      // Simulating the flow for demo
+      /**
+       * CREATE PRODUCT FLOW (strict backend-mediated):
+       * 
+       * Step 1: Upload image to IPFS
+       *   POST /api/ipfs/upload (multipart/form-data with image file)
+       *   → Backend uploads to Pinata → Returns IPFS URI
+       * 
+       * Step 2: Get approve tx data for listing fee
+       *   POST /api/blockchain/prepare-approve
+       *   → Backend constructs: tokenContract.approve(MARKETPLACE_ADDRESS, listingFee)
+       *   → Returns unsigned tx data to frontend
+       * 
+       * Step 3: User signs approve tx in MetaMask
+       *   → Frontend calls wallet.signTransaction(unsignedTx)
+       *   → Returns signedTx to backend
+       * 
+       * Step 4: Backend broadcasts approve tx
+       *   POST /api/blockchain/broadcast { signedTransaction }
+       *   → provider.broadcastTransaction(signedTx)
+       * 
+       * Step 5: Get createProduct tx data
+       *   POST /api/blockchain/prepare-create
+       *   → Backend constructs: contract.createProduct(name, description, price, imageURI)
+       *   → Returns unsigned tx data to frontend
+       * 
+       * Step 6: User signs createProduct tx in MetaMask
+       *   → Frontend calls wallet.signTransaction(unsignedTx)
+       *   → Returns signedTx to backend
+       * 
+       * Step 7: Backend broadcasts createProduct tx
+       *   POST /api/blockchain/broadcast { signedTransaction }
+       *   → Contract calls: paymentToken.safeTransferFrom(msg.sender, address(this), listingFee)
+       *   → Product is created on-chain
+       * 
+       * Note: The contract's createProduct requires prior ERC20 approval for listingFee.
+       * The contract uses: paymentToken.safeTransferFrom(msg.sender, address(this), listingFee)
+       */
+
+      // Simulating the complete flow for demo
       await new Promise(resolve => setTimeout(resolve, 2000));
       setSuccess(true);
       setTimeout(() => onCreated(), 2000);
@@ -104,7 +137,7 @@ export default function CreateProduct({ onCreated }: CreateProductProps) {
 
             {success && (
               <Alert severity="success" sx={{ mb: 3, borderRadius: '12px' }} icon={<CheckCircleIcon />}>
-                Product created successfully! Redirecting to marketplace...
+                Product created successfully! The listing fee of {LISTING_FEE_TONY} TONY has been deducted. Redirecting...
               </Alert>
             )}
 
@@ -139,7 +172,7 @@ export default function CreateProduct({ onCreated }: CreateProductProps) {
                         Drop your image here or click to browse
                       </Typography>
                       <Typography variant="body2" sx={{ color: '#b8b8d4' }}>
-                        PNG, JPG, GIF up to 10MB
+                        PNG, JPG, GIF up to 10MB — Will be uploaded to IPFS via Pinata
                       </Typography>
                     </>
                   )}
@@ -199,7 +232,9 @@ export default function CreateProduct({ onCreated }: CreateProductProps) {
                   }}
                 />
                 <Alert severity="info" sx={{ borderRadius: '12px' }}>
-                  A listing fee of <strong>10 TONY</strong> will be charged to list this product on the marketplace.
+                  <strong>Listing Fee:</strong> {LISTING_FEE_TONY} TONY will be deducted from your wallet when creating this product.
+                  <br />
+                  <strong>Platform Fee:</strong> {PLATFORM_FEE_BPS / 100}% of the sale price goes to the platform when the product is purchased.
                 </Alert>
               </Box>
             )}
@@ -224,22 +259,31 @@ export default function CreateProduct({ onCreated }: CreateProductProps) {
                 <Typography variant="h6" sx={{ mb: 2 }}>
                   Ready to Create Product
                 </Typography>
-                <Typography variant="body2" sx={{ color: '#b8b8d4', mb: 3, maxWidth: 400, mx: 'auto' }}>
-                  You will be asked to sign two transactions in your wallet:
-                  <br />1. Approve listing fee (10 TONY)
-                  <br />2. Create product on blockchain
+                <Typography variant="body2" sx={{ color: '#b8b8d4', mb: 3, maxWidth: 450, mx: 'auto' }}>
+                  You will be asked to sign <strong>two transactions</strong> in your wallet:
                 </Typography>
 
                 <Box sx={{ background: 'rgba(18, 18, 42, 0.8)', borderRadius: '12px', p: 3, mb: 3, textAlign: 'left' }}>
-                  <Typography variant="body2" sx={{ color: '#b8b8d4', mb: 1 }}>
-                    <strong style={{ color: '#fff' }}>Name:</strong> {name}
+                  <Typography variant="body2" sx={{ color: '#b8b8d4', mb: 1.5 }}>
+                    <strong style={{ color: '#00cec9' }}>Tx 1:</strong> Approve {LISTING_FEE_TONY} TONY (ERC20.approve)
                   </Typography>
-                  <Typography variant="body2" sx={{ color: '#b8b8d4', mb: 1 }}>
-                    <strong style={{ color: '#fff' }}>Price:</strong> {price} TONY
+                  <Typography variant="body2" sx={{ color: '#b8b8d4', mb: 1.5 }}>
+                    <strong style={{ color: '#00cec9' }}>Tx 2:</strong> Create Product (contract.createProduct)
                   </Typography>
-                  <Typography variant="body2" sx={{ color: '#b8b8d4' }}>
-                    <strong style={{ color: '#fff' }}>Listing Fee:</strong> 10 TONY
-                  </Typography>
+                  <Box sx={{ mt: 2, pt: 2, borderTop: '1px solid rgba(108, 92, 231, 0.1)' }}>
+                    <Typography variant="body2" sx={{ color: '#b8b8d4', mb: 0.5 }}>
+                      <strong style={{ color: '#fff' }}>Name:</strong> {name}
+                    </Typography>
+                    <Typography variant="body2" sx={{ color: '#b8b8d4', mb: 0.5 }}>
+                      <strong style={{ color: '#fff' }}>Price:</strong> {price} TONY
+                    </Typography>
+                    <Typography variant="body2" sx={{ color: '#b8b8d4', mb: 0.5 }}>
+                      <strong style={{ color: '#fff' }}>Listing Fee:</strong> {LISTING_FEE_TONY} TONY
+                    </Typography>
+                    <Typography variant="body2" sx={{ color: '#b8b8d4' }}>
+                      <strong style={{ color: '#fff' }}>Storage:</strong> IPFS (Pinata)
+                    </Typography>
+                  </Box>
                 </Box>
               </Box>
             )}

@@ -12,8 +12,9 @@ const demoProducts = [
     price: '150',
     imageURI: 'https://images.unsplash.com/photo-1634017839464-5c339ebe3cb4?w=400&h=300&fit=crop',
     owner: '0x1234...5678',
-    isListed: true,
+    listed: true,
     category: 'Digital Art',
+    createdAt: Date.now() / 1000 - 86400 * 2,
   },
   {
     id: 2,
@@ -22,8 +23,9 @@ const demoProducts = [
     price: '500',
     imageURI: 'https://images.unsplash.com/photo-1633356122544-f134324a6cee?w=400&h=300&fit=crop',
     owner: '0xabcd...ef01',
-    isListed: true,
+    listed: true,
     category: 'Software',
+    createdAt: Date.now() / 1000 - 86400 * 5,
   },
   {
     id: 3,
@@ -32,8 +34,9 @@ const demoProducts = [
     price: '1200',
     imageURI: 'https://images.unsplash.com/photo-1677442136019-21780ecad995?w=400&h=300&fit=crop',
     owner: '0x2345...6789',
-    isListed: true,
+    listed: true,
     category: 'AI/ML',
+    createdAt: Date.now() / 1000 - 86400 * 1,
   },
   {
     id: 4,
@@ -42,8 +45,9 @@ const demoProducts = [
     price: '800',
     imageURI: 'https://images.unsplash.com/photo-1639762681485-074b7f938ba0?w=400&h=300&fit=crop',
     owner: '0x3456...7890',
-    isListed: true,
+    listed: true,
     category: 'Tools',
+    createdAt: Date.now() / 1000 - 86400 * 3,
   },
   {
     id: 5,
@@ -52,8 +56,9 @@ const demoProducts = [
     price: '2500',
     imageURI: 'https://images.unsplash.com/photo-1639322537228-f710d846310a?w=400&h=300&fit=crop',
     owner: '0x4567...8901',
-    isListed: true,
+    listed: true,
     category: 'Virtual Assets',
+    createdAt: Date.now() / 1000 - 86400 * 7,
   },
   {
     id: 6,
@@ -62,8 +67,9 @@ const demoProducts = [
     price: '3000',
     imageURI: 'https://images.unsplash.com/photo-1526374965328-7f61d4dc18c5?w=400&h=300&fit=crop',
     owner: '0x5678...9012',
-    isListed: true,
+    listed: true,
     category: 'Services',
+    createdAt: Date.now() / 1000 - 86400 * 4,
   },
 ];
 
@@ -121,7 +127,7 @@ export default function ProductList({ onViewProduct, featured = false }: Product
                     size="small"
                     sx={{ position: 'absolute', top: 12, left: 12, background: 'rgba(108, 92, 231, 0.9)', color: '#fff', fontWeight: 600 }}
                   />
-                  {product.isListed && (
+                  {product.listed && (
                     <Chip
                       label="Listed"
                       size="small"
